@@ -1,31 +1,64 @@
-import React,{useState} from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import Vapi from "@vapi-ai/web";
 const apiKey = "27093ede-e32e-4331-b91f-a58bd996d130";
-const assistantId = "df8c4866-aeaa-4413-ae12-e2267fc68975";
+const assistantId = "c35c764f-8b48-4935-8129-0787d1caf481";
 const vapi = new Vapi(apiKey);
-const Home = () => {
 
+const Home = () => {
+  const [statements, setStatements] = useState([]); // { sender: 'agent', text: string }
+  const [lastAgentStatement, setLastAgentStatement] = useState('');
   const [isRecording, setIsRecording] = useState(false);
+  const prevIsRecording = useRef(isRecording);
+
+  // Add listeners only once
+  useEffect(() => {
+    vapi.addListener('statement', (statement) => {
+      if (statement.sender === 'agent') {
+        setStatements(prev => [...prev, { sender: 'agent', text: statement.text }]);
+      }
+    });
+    vapi.addListener('error', (error) => {
+      console.error('Error:', error);
+      alert('An error occurred: ' + error.message);
+    });
+    // No cleanup needed for this SDK
+    // eslint-disable-next-line
+  }, []);
 
   const handleRecord = () => {
     if (!isRecording) {
-      // Start recording logic here
       setIsRecording(true);
+      vapi.start(assistantId);
       alert('Call started!');
-      // Add your recording logic here
-     vapi.start(assistantId);
     } else {
-      // Terminate recording logic here
       setIsRecording(false);
-      alert('Call stopped!');
       vapi.stop(assistantId);
+      alert('Call stopped!');
     }
   };
 
+  // Watch for isRecording transition from true to false
+  useEffect(() => {
+    if (prevIsRecording.current && !isRecording) {
+      // Recording just ended 
+      const last = [...statements].reverse().find(s => s.sender === 'agent');
+      if (last) setLastAgentStatement(last.text);
+    }
+    prevIsRecording.current = isRecording;
+  }, [isRecording, statements]);
+
+  // Log statements for debugging
+  useEffect(() => {
+    console.log(statements);
+  }, [statements]);
 
   return (
     <div style={{ minHeight: '100vh', position: 'relative', background: '#fafafa' }}>
       <h1 style={{ textAlign: 'center', marginTop: '2rem' }}>Welcome to the Loan App</h1>
+      <div style={{ marginTop: '2rem', textAlign: 'center' }}>
+        <strong>Last Agent Statement (after call ends):</strong>
+        <div>{lastAgentStatement}</div>
+      </div>
       <button
         onClick={handleRecord}
         style={{
